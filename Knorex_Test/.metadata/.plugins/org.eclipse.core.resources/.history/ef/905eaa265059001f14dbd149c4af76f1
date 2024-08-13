@@ -1,0 +1,5 @@
+package com.vasttags.parse;
+
+public class VastDatabaseHandler {
+
+}

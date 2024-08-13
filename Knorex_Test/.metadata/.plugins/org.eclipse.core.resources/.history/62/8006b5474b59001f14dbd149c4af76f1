@@ -1,0 +1,11 @@
+package com.vasttags.parse.model;
+
+public class VastTag {
+	private String vastVersion;
+    private String adId;
+    private String adTitle;
+    private String adDescription;
+    private Impression impression;
+    private List<Creative> creatives;
+
+}

@@ -1,0 +1,16 @@
+package com.vasttags.parse.model;
+
+import java.util.List;
+
+public class VastTag {
+	private String vastTagVersion;
+    private String Id;
+    private String Title;
+    private String Description;
+    private Impression impression;
+    private List<Creatives> creatives;
+    
+    
+    
+
+}

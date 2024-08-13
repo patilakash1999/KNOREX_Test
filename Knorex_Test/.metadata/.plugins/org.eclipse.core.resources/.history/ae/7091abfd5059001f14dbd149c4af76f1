@@ -1,0 +1,169 @@
+package com.vasttags.parse;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.vasttags.parse.model.Companion;
+import com.vasttags.parse.model.Creatives;
+import com.vasttags.parse.model.Impression;
+import com.vasttags.parse.model.MediaFiles;
+import com.vasttags.parse.model.TrackingEvents;
+import com.vasttags.parse.model.VastTag;
+import com.vasttags.parse.model.VideoClicks;
+
+public class VastDatabaseHandler {
+	
+	  private static final String URL = "jdbc:mysql://localhost:3306/vast_db";
+	    private static final String USER = "root"; // Change to your MySQL username
+	    private static final String PASSWORD = "password"; // Change to your MySQL password
+
+	    // Establish a database connection
+	    private Connection connect() throws SQLException {
+	        return DriverManager.getConnection(URL, USER, PASSWORD);
+	    }
+
+	    // Insert VAST data into the database
+	    public void insertVastData(VastModel vastModel) {
+	        String insertVastSQL = "INSERT INTO vast (vast_version, ad_id, ad_title, ad_description) VALUES (?, ?, ?, ?)";
+	        String insertImpressionSQL = "INSERT INTO impression (vast_id, impression_id, impression_url) VALUES (?, ?, ?)";
+	        String insertCreativeSQL = "INSERT INTO creatives (vast_id, creative_id, duration) VALUES (?, ?, ?)";
+	        String insertCompanionSQL = "INSERT INTO companions (creative_id, companion_id, width, height, type, source, click_through_url) VALUES (?, ?, ?, ?, ?, ?, ?)";
+	        String insertTrackingEventSQL = "INSERT INTO tracking_events (creative_id, event_type, event_url) VALUES (?, ?, ?)";
+	        String insertVideoClickSQL = "INSERT INTO video_clicks (creative_id, click_id, click_url) VALUES (?, ?, ?)";
+	        String insertMediaFileSQL = "INSERT INTO media_files (creative_id, type, bitrate, width, height, source) VALUES (?, ?, ?, ?, ?, ?)";
+
+	        try (Connection conn = connect();
+	             PreparedStatement insertVastStmt = conn.prepareStatement(insertVastSQL, PreparedStatement.RETURN_GENERATED_KEYS);
+	             PreparedStatement insertImpressionStmt = conn.prepareStatement(insertImpressionSQL);
+	             PreparedStatement insertCreativeStmt = conn.prepareStatement(insertCreativeSQL, PreparedStatement.RETURN_GENERATED_KEYS);
+	             PreparedStatement insertCompanionStmt = conn.prepareStatement(insertCompanionSQL);
+	             PreparedStatement insertTrackingEventStmt = conn.prepareStatement(insertTrackingEventSQL);
+	             PreparedStatement insertVideoClickStmt = conn.prepareStatement(insertVideoClickSQL);
+	             PreparedStatement insertMediaFileStmt = conn.prepareStatement(insertMediaFileSQL)) {
+
+	            // Insert VAST data
+	            insertVastStmt.setString(1, vastModel.getVastVersion());
+	            insertVastStmt.setString(2, vastModel.getAdId());
+	            insertVastStmt.setString(3, vastModel.getAdTitle());
+	            insertVastStmt.setString(4, vastModel.getAdDescription());
+	            insertVastStmt.executeUpdate();
+
+	            ResultSet generatedKeys = insertVastStmt.getGeneratedKeys();
+	            if (generatedKeys.next()) {
+	                int vastId = generatedKeys.getInt(1);
+
+	                Impression impression = vastModel.getImpression();
+	                if (impression != null) {
+	                    insertImpressionStmt.setInt(1, vastId);
+	                    insertImpressionStmt.setString(2, impression.getId());
+	                    insertImpressionStmt.setString(3, impression.getUrl());
+	                    insertImpressionStmt.executeUpdate();
+	                }
+
+	                for (Creatives creative : vastModel.getCreatives()) {
+	                    insertCreativeStmt.setInt(1, vastId);
+	                    insertCreativeStmt.setString(2, creative.getId());
+	                    insertCreativeStmt.setString(3, creative.getDuration());
+	                    insertCreativeStmt.executeUpdate();
+
+	                    ResultSet generatedCreativeKeys = insertCreativeStmt.getGeneratedKeys();
+	                    if (generatedCreativeKeys.next()) {
+	                        int creativeId = generatedCreativeKeys.getInt(1);
+
+	                        for (Companion companion : creative.getCompanions()) {
+	                            insertCompanionStmt.setInt(1, creativeId);
+	                            insertCompanionStmt.setString(2, companion.getId());
+	                            insertCompanionStmt.setInt(3, companion.getWidth());
+	                            insertCompanionStmt.setInt(4, companion.getHeight());
+	                            insertCompanionStmt.setString(5, companion.getType());
+	                            insertCompanionStmt.setString(6, companion.getSource());
+	                            insertCompanionStmt.setString(7, companion.getClickThroughUrl());
+	                            insertCompanionStmt.executeUpdate();
+	                        }
+
+	                        for (TrackingEvents trackingEvent : creative.getTrackingEvents()) {
+	                            insertTrackingEventStmt.setInt(1, creativeId);
+	                            insertTrackingEventStmt.setString(2, trackingEvent.getEventType());
+	                            insertTrackingEventStmt.setString(3, trackingEvent.getEventUrl());
+	                            insertTrackingEventStmt.executeUpdate();
+	                        }
+
+	                        for (VideoClicks videoClick : creative.getVideoClicks()) {
+	                            insertVideoClickStmt.setInt(1, creativeId);
+	                            insertVideoClickStmt.setString(2, videoClick.getId());
+	                            insertVideoClickStmt.setString(3, videoClick.getUrl());
+	                            insertVideoClickStmt.executeUpdate();
+	                        }
+
+	                        for (MediaFiles mediaFile : creative.getMediaFiles()) {
+	                            insertMediaFileStmt.setInt(1, creativeId);
+	                            insertMediaFileStmt.setString(2, mediaFile.getType());
+	                            insertMediaFileStmt.setInt(3, mediaFile.getBitrate());
+	                            insertMediaFileStmt.setInt(4, mediaFile.getWidth());
+	                            insertMediaFileStmt.setInt(5, mediaFile.getHeight());
+	                            insertMediaFileStmt.setString(6, mediaFile.getSource());
+	                            insertMediaFileStmt.executeUpdate();
+	                        }
+	                    }
+	                }
+	            }
+
+	        } catch (SQLException e) {
+	            e.printStackTrace();
+	        }
+	    }
+
+	    public VastTag queryVastData(int vastId) {
+	        String queryVastSQL = "SELECT * FROM vast WHERE id = ?";
+	        String queryImpressionSQL = "SELECT * FROM impression WHERE vast_id = ?";
+	        String queryCreativesSQL = "SELECT * FROM creatives WHERE vast_id = ?";
+
+	        VastTag vastModel = new VastTag();
+
+	        try (Connection conn = connect();
+	             PreparedStatement queryVastStmt = conn.prepareStatement(queryVastSQL);
+	             PreparedStatement queryImpressionStmt = conn.prepareStatement(queryImpressionSQL);
+	             PreparedStatement queryCreativesStmt = conn.prepareStatement(queryCreativesSQL)) {
+
+	            queryVastStmt.setInt(1, vastId);
+	            ResultSet vastResultSet = queryVastStmt.executeQuery();
+	            if (vastResultSet.next()) {
+	                vastModel.setVastTagVersion(vastResultSet.getString("vast_version"));
+	                vastModel.setId(vastResultSet.getString("ad_id"));
+	                vastModel.setTitle(vastResultSet.getString("ad_title"));
+	                vastModel.setDescription(vastResultSet.getString("ad_description"));
+
+	                queryImpressionStmt.setInt(1, vastId);
+	                ResultSet impressionResultSet = queryImpressionStmt.executeQuery();
+	                if (impressionResultSet.next()) {
+	                    Impression impression = new Impression();
+	                    impression.setId(impressionResultSet.getString("impression_id"));
+	                    impression.setUrl(impressionResultSet.getString("impression_url"));
+	                    vastModel.setImpression(impression);
+	                }
+
+	                queryCreativesStmt.setInt(1, vastId);
+	                ResultSet creativesResultSet = queryCreativesStmt.executeQuery();
+	                List<Creatives> creatives = new ArrayList<>();
+	                while (creativesResultSet.next()) {
+	                    Creatives creative = new Creatives();
+	                    creative.setDuration(creativesResultSet.getString("duration"));
+
+	                    creatives.add(creative);
+	                }
+	                vastModel.setCreatives(creatives);
+	            }
+
+	        } catch (SQLException e) {
+	            e.printStackTrace();
+	        }
+
+	        return vastModel;
+	    }
+	
+
+}

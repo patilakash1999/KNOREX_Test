@@ -1,0 +1,5 @@
+package com.vasttags.parse.model;
+
+public class VastModel {
+
+}

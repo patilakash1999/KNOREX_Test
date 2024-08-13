@@ -1,0 +1,156 @@
+package com.vasttags.parse;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+
+import com.vasttags.parse.model.Companion;
+import com.vasttags.parse.model.Creatives;
+import com.vasttags.parse.model.Impression;
+import com.vasttags.parse.model.MediaFiles;
+import com.vasttags.parse.model.TrackingEvents;
+import com.vasttags.parse.model.VastTag;
+import com.vasttags.parse.model.VideoClicks;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.List;
+import javax.xml.transform.stream.StreamSource;
+
+public class VastXmlParser {
+	
+	public VastTag parseVastXml(String xmlContent) {
+        VastTag vastModel = new VastTag();
+
+        try {
+            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder builder = factory.newDocumentBuilder();
+            Document doc = builder.parse(new StreamSource(new StringReader(xmlContent)));
+
+            // Parse VAST version
+            Node vastNode = doc.getElementsByTagName("VAST").item(0);
+            Element vastElement = (Element) vastNode;
+            vastModel.setVastTagVersion(vastElement.getAttribute("vastTagVersion"));
+
+            // Parse Ad
+            Node adNode = doc.getElementsByTagName("Ad").item(0);
+            Element adElement = (Element) adNode;
+            vastModel.setId(adElement.getAttribute("id"));
+
+            // Parse InLine
+            Node inlineNode = adElement.getElementsByTagName("InLine").item(0);
+            Element inlineElement = (Element) inlineNode;
+
+            vastModel.setTitle(getTextContent(inlineElement, "AdTitle"));
+            vastModel.setDescription(getTextContent(inlineElement, "Description"));
+
+            // Parse Impression
+            Node impressionNode = inlineElement.getElementsByTagName("Impression").item(0);
+            if (impressionNode != null) {
+            	Impression impression = new Impression();
+                Element impressionElement = (Element) impressionNode;
+                impression.setId(impressionElement.getAttribute("id"));
+                impression.setUrl(impressionElement.getTextContent());
+                vastModel.setImpression(impression);
+            }
+
+            // Parse Creatives
+            NodeList creativeNodes = inlineElement.getElementsByTagName("Creative");
+            List<Creatives> creatives = new ArrayList<>();
+            for (int i = 0; i < creativeNodes.getLength(); i++) {
+                Node creativeNode = creativeNodes.item(i);
+                Element creativeElement = (Element) creativeNode;
+                Creatives creative = new Creatives();
+
+                // Parse CompanionAds
+                NodeList companionNodes = creativeElement.getElementsByTagName("Companion");
+                List<Companion> companions = new ArrayList<>();
+                for (int j = 0; j < companionNodes.getLength(); j++) {
+                    Node companionNode = companionNodes.item(j);
+                    Element companionElement = (Element) companionNode;
+                    Companion companion = new Companion();
+                    companion.setId(companionElement.getAttribute("id"));
+                    companion.setWidth(Integer.parseInt(companionElement.getAttribute("width")));
+                    companion.setHeight(Integer.parseInt(companionElement.getAttribute("height")));
+                    companion.setType(companionElement.getElementsByTagName("StaticResource").item(0).getAttributes().getNamedItem("creativeType").getTextContent());
+                    companion.setSource(getTextContent(companionElement, "StaticResource"));
+                    companion.setClickThroughUrl(getTextContent(companionElement, "CompanionClickThrough"));
+                    companions.add(companion);
+                }
+                creative.setCompanions(companions);
+
+                // Parse Linear
+                Node linearNode = creativeElement.getElementsByTagName("Linear").item(0);
+                if (linearNode != null) {
+                    Element linearElement = (Element) linearNode;
+                    creative.setDuration(getTextContent(linearElement, "Duration"));
+
+                    // Parse TrackingEvents
+                    NodeList trackingEventNodes = linearElement.getElementsByTagName("Tracking");
+                    List<TrackingEvents> trackingEvents = new ArrayList<>();
+                    for (int k = 0; k < trackingEventNodes.getLength(); k++) {
+                        Node trackingEventNode = trackingEventNodes.item(k);
+                        Element trackingEventElement = (Element) trackingEventNode;
+                        TrackingEvents trackingEvent = new TrackingEvents();
+                        trackingEvent.setEventType(trackingEventElement.getAttribute("event"));
+                        trackingEvent.setEventUrl(trackingEventElement.getTextContent());
+                        trackingEvents.add(trackingEvent);
+                    }
+                    creative.setTrackingEvents(trackingEvents);
+
+                    // Parse VideoClicks
+                    NodeList videoClickNodes = linearElement.getElementsByTagName("ClickTracking");
+                    List<VideoClicks> videoClicks = new ArrayList<>();
+                    for (int l = 0; l < videoClickNodes.getLength(); l++) {
+                        Node videoClickNode = videoClickNodes.item(l);
+                        VideoClicks videoClick = new VideoClicks();
+                        videoClick.setId(((Element) videoClickNode).getAttribute("id"));
+                        videoClick.setUrl(videoClickNode.getTextContent());
+                        videoClicks.add(videoClick);
+                    }
+                    creative.setVideoClicks(videoClicks);
+
+                    // Parse MediaFiles
+                    NodeList mediaFileNodes = linearElement.getElementsByTagName("MediaFile");
+                    List<MediaFiles> mediaFiles = new ArrayList<>();
+                    for (int m = 0; m < mediaFileNodes.getLength(); m++) {
+                        Node mediaFileNode = mediaFileNodes.item(m);
+                        Element mediaFileElement = (Element) mediaFileNode;
+                        MediaFiles mediaFile = new MediaFiles();
+                        mediaFile.setType(mediaFileElement.getAttribute("type"));
+                        mediaFile.setBitrate(Integer.parseInt(mediaFileElement.getAttribute("bitrate")));
+                        mediaFile.setWidth(Integer.parseInt(mediaFileElement.getAttribute("width")));
+                        mediaFile.setHeight(Integer.parseInt(mediaFileElement.getAttribute("height")));
+                        mediaFile.setSource(mediaFileElement.getTextContent());
+                        mediaFiles.add(mediaFile);
+                    }
+                    creative.setMediaFiles(mediaFiles);
+                }
+
+                creatives.add(creative);
+            }
+            vastModel.setCreatives(creatives);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return vastModel;
+    }
+
+    private String getTextContent(Element element, String tagName) {
+        NodeList nodeList = element.getElementsByTagName(tagName);
+        if (nodeList.getLength() > 0) {
+            return nodeList.item(0).getTextContent().trim();
+        }
+        return null;
+    }
+	
+
+	public static void main(String[] args) {
+
+	}
+
+}
